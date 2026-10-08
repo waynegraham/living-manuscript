@@ -11,16 +11,16 @@ export default function ManuscriptViewer({ manuscript }: { manuscript: Manuscrip
     <section aria-labelledby="manuscript-title" className="min-w-0">
       <div className="mb-4 flex items-center justify-between gap-4">
         <span className="eyebrow">01 / The object</span>
-        <span className="text-xs text-muted">Demonstration illustration</span>
+        <span className="text-xs text-muted">Manuscript study image</span>
       </div>
       <figure>
         <div className="viewer-stage relative flex min-h-72 items-center justify-center overflow-hidden rounded-sm border border-white/10 p-4 sm:min-h-110 sm:p-7 lg:min-h-130">
           {failed ? (
-            <p role="status" className="max-w-xs p-6 text-center text-sm text-paper">The demonstration image could not be loaded. No historical manuscript has been selected yet.</p>
+            <p role="status" className="max-w-xs p-6 text-center text-sm text-paper">This image could not be displayed. TIFF images may need conversion to PNG or JPEG for this browser. You can still ask questions about the supplied manuscript data.</p>
           ) : (
             <Image src={manuscript.image.src} alt={manuscript.image.alt} width={manuscript.image.width} height={manuscript.image.height} priority unoptimized onError={() => setFailed(true)} className="h-auto w-full drop-shadow-2xl" />
           )}
-          <span aria-hidden="true" className="absolute bottom-5 left-6 text-[10px] tracking-[0.18em] text-paper/65">ILLUSTRATION / DEMO–001</span>
+          <span aria-hidden="true" className="absolute bottom-5 left-6 text-[10px] tracking-[0.18em] text-paper/65">KAWLA / STUDY VIEW</span>
         </div>
         <figcaption className="mt-6">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -31,7 +31,7 @@ export default function ManuscriptViewer({ manuscript }: { manuscript: Manuscrip
         </figcaption>
       </figure>
       <dl className="mt-6 grid grid-cols-3 gap-3 border-t border-line pt-5">
-        {[ ["Date", manuscript.date], ["Origin", manuscript.placeOfProduction], ["Language", manuscript.language] ].map(([label, value]) => (
+        {[ ["Date", manuscript.date ?? "Not established"], ["Origin", manuscript.placeOfProduction], ["Language", manuscript.language] ].map(([label, value]) => (
           <div key={label}><dt className="eyebrow text-muted">{label}</dt><dd className="mt-2 text-xs sm:text-sm">{value}</dd></div>
         ))}
       </dl>

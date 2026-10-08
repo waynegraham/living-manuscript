@@ -562,3 +562,27 @@ The purpose of this experiment is not to make visitors believe that a historical
 It is to explore whether a conversational, first-person encounter with a cultural object can inspire curiosity, encourage close looking, and support historically responsible interpretation.
 
 **The manuscript provides the invitation. The scholarly guide provides the evidence. The visitor drives the discovery.**
+
+## Local AI Inference
+
+The primary development machine is an Apple Silicon Mac
+with 36 GB of unified memory.
+
+Prefer local inference over hosted APIs.
+
+Default models:
+- LLM: Qwen3-8B, 4-bit, served through LM Studio
+- STT: Whisper large-v3-turbo using MLX
+- TTS: Kokoro-82M with two distinct English voices
+
+Requirements:
+- Use LM Studio's OpenAI-compatible API.
+- Run STT and TTS through lightweight local services.
+- Support model configuration through environment variables.
+- Keep models loaded between requests where practical.
+- Use non-thinking mode for conversational responses.
+- Limit conversational context to control latency.
+- Do not download or load models on every request.
+- Allow text-only interaction when speech services fail.
+- Log per-stage latency without storing visitor audio.
+- Preserve the option to use hosted providers later.

@@ -22,7 +22,7 @@ export default function Home() {
         </div>
         <aside aria-label="About this demonstration" className="mb-10 flex flex-col gap-3 border-y border-line py-5 sm:flex-row sm:gap-8">
           <span className="eyebrow shrink-0 text-terracotta">A note on this encounter</span>
-          <p className="max-w-3xl text-xs leading-6 text-muted">The image and introduction are demonstration content. No historical KAWLA manuscript is represented. The manuscript’s first-person voice is an interpretive device; future voices will be AI-generated. Historical claims will be grounded in documented evidence.</p>
+          <p className="max-w-3xl text-xs leading-6 text-muted">This is an experimental encounter using the supplied manuscript record. The manuscript’s first-person voice is an interpretive device, and spoken voices are AI-generated. Answers use the available record and acknowledge gaps in the evidence.</p>
         </aside>
       </main>
       <footer className="flex flex-wrap justify-between gap-3 pb-7 text-[10px] uppercase tracking-[0.15em] text-muted"><span>KAWLA · Living Manuscript</span><span>The visitor drives the discovery.</span></footer>

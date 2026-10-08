@@ -1,22 +1,27 @@
 {
-  "identifier": "demo-001",
-  "title": "A manuscript, imagined",
-  "isDemonstration": true,
-  "date": "Not established",
-  "placeOfProduction": "Not established",
-  "language": "Not established",
-  "description": "An original illustration made for this interface demonstration. The ornamental lines are abstract marks, not readable text or a reproduction of a historical object.",
-  "image": {
-    "src": "/manuscripts/demo-manuscript.svg",
-    "alt": "Demonstration illustration of an open manuscript with warm paper, a red border, and abstract ink marks.",
-    "width": 1000,
-    "height": 760
-  },
-  "verifiedFacts": [],
-  "scholarlyInterpretations": [],
-  "knownUncertainties": ["No historical manuscript has been selected. Date, creator, provenance, and language are not established."],
-  "physicalFeatures": [],
-  "evidenceReferences": [],
-  "suggestedQuestions": ["Who are you?", "What is written on your pages?", "What don't we know about you?"],
-  "demoIntroduction": "Welcome. I am a demonstration placeholder for a future manuscript encounter. Take a moment to look closely; when a documented manuscript is added, its own details will guide our conversation."
+  "id": "kawla-demo-001",
+  "title": "Untitled Manuscript",
+  "date": null,
+  "place": null,
+  "language": "Arabic",
+  "description": "Historical manuscript from the KAWLA collection.",
+  "imageUrl": "/manuscripts/00003-747-AB009300.tif",
+  "facts": [
+    {
+      "id": "fact-001",
+      "statement": "The manuscript contains handwritten Arabic text.",
+      "source": "KAWLA catalog record"
+    }
+  ],
+  "interpretations": [],
+  "uncertainties": [
+    "The date of production has not been established.",
+    "The identity of the scribe is unknown."
+  ],
+  "suggestedQuestions": [
+    "Tell me about yourself.",
+    "Who created you?",
+    "What can we learn from your pages?",
+    "What don't we know about you?"
+  ]
 }

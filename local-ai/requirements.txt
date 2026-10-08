@@ -1,0 +1,10 @@
+# Use native arm64 Python 3.11 on macOS. MLX requires Apple Silicon.
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+python-multipart>=0.0.20,<1
+python-dotenv>=1.0,<2
+mlx-whisper>=0.4.2,<0.5
+mlx-audio>=0.3,<0.4
+misaki[en]>=0.9.4,<0.10
+soundfile>=0.13,<0.14
+numpy>=2,<3
