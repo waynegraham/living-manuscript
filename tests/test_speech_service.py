@@ -79,8 +79,25 @@ class SpeechTests(unittest.TestCase):
             response = self.client.post("/transcribe", files={"file": ("q.webm", b"test audio", "audio/webm")}, data={"model": server.WHISPER, "language": "en"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["text"], "Who are you?")
-            recognize.assert_called_once_with(b"test audio", ".webm")
+            recognize.assert_called_once_with(b"test audio", ".webm", "en")
         self.assertFalse(server.busy)
+
+    def test_arabic_transcription_passes_language_and_rejects_other_codes(self):
+        with patch.object(server, "recognize", return_value={"text": "من أنت؟"}) as recognize:
+            response = self.client.post("/transcribe", files={"file": ("q.webm", b"audio", "audio/webm")}, data={"model": server.WHISPER, "language": "ar"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["text"], "من أنت؟")
+            recognize.assert_called_once_with(b"audio", ".webm", "ar")
+            response = self.client.post("/transcribe", files={"file": ("q.webm", b"audio", "audio/webm")}, data={"model": server.WHISPER, "language": "fr"})
+            self.assertEqual(response.status_code, 422)
+            self.assertEqual(recognize.call_count, 1)
+
+    def test_kokoro_refuses_arabic_before_inference(self):
+        with patch.object(server, "synthesize") as synthesize:
+            response = self.client.post("/speak", json=self.payload(input="مرحبًا", language="ar"))
+            self.assertEqual(response.status_code, 422)
+            self.assertIn("Arabic", response.json()["detail"])
+            synthesize.assert_not_called()
 
     def test_transcription_rejects_model_mismatch_and_oversized_body(self):
         response = self.client.post("/transcribe", files={"file": ("q.webm", b"audio", "audio/webm")}, data={"model": "other"})

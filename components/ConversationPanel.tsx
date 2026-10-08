@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Manuscript } from "@/lib/manuscript";
-import type { ChatResponse, Turn } from "@/lib/schemas";
+import type { ChatResponse, ResponseLanguage, Turn } from "@/lib/schemas";
 import PushToTalk from "./PushToTalk";
 import SpeakerIndicator from "./SpeakerIndicator";
 import SuggestedQuestions from "./SuggestedQuestions";
@@ -17,6 +17,7 @@ async function checked(response: Response) {
 }
 export default function ConversationPanel({ manuscript }: { manuscript: Manuscript }) {
   const [question, setQuestion] = useState("");
+  const [language, setLanguage] = useState<ResponseLanguage>("en");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -63,13 +64,13 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
     setQuestion(""); setTurns([]); setBusy(false); setRetryAudio(null); setResetKey(k => k + 1);
     setStatus("Conversation reset.");
   }
-  async function play(answer: ChatResponse, generate: boolean) {
+  async function play(answer: ChatResponse, generate: boolean, answerLanguage: ResponseLanguage = language) {
     stopAudio(generate);
     const id = playback.current;
     try {
       if (generate || !audio.current) {
         const controller = new AbortController(); speechRequest.current = controller;
-        const response = await checked(await fetch("/api/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: answer.text, speaker: answer.speaker }), signal: controller.signal }));
+        const response = await checked(await fetch("/api/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: answer.text, speaker: answer.speaker, language: answerLanguage }), signal: controller.signal }));
         const blob = await response.blob();
         if (id !== playback.current) return;
         audioUrl.current = URL.createObjectURL(blob);
@@ -88,12 +89,14 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
   }
   async function send(message: string, id: number, signal: AbortSignal) {
     stopAudio(true);
-    const response = await checked(await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history: turns.slice(-18) }), signal }));
+    const response = await checked(await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, history: turns.slice(-18), language }), signal }));
     const answer: ChatResponse = await response.json();
     if (id !== session.current) return;
-    setTurns(previous => [...previous, { role: "user", text: message } as Turn, { role: "assistant", response: answer } as Turn].slice(-20));
+    setTurns(previous => [...previous, { role: "user", text: message, language } as Turn, { role: "assistant", response: answer, language } as Turn].slice(-20));
     setQuestion(""); setStatus("Response received.");
-    if (health?.tts.provider !== "disabled") void play(answer, true);
+    if (language === "ar" && health?.tts.provider === "kokoro") {
+      setStatus("Arabic response received. Kokoro playback is available only for English responses.");
+    } else if (health?.tts.provider !== "disabled") void play(answer, true, language);
   }
   async function interact(message?: string, recording?: { blob: Blob; duration: number }) {
     if (inFlight.current) return;
@@ -104,7 +107,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
         setRetryAudio(recording); setStatus("Transcribing your question…");
         const form = new FormData();
         const extension = recording.blob.type.includes("mp4") ? "mp4" : recording.blob.type.includes("ogg") ? "ogg" : "webm";
-        form.set("file", recording.blob, `question.${extension}`); form.set("duration", String(recording.duration));
+        form.set("file", recording.blob, `question.${extension}`); form.set("duration", String(recording.duration)); form.set("language", language);
         const response = await checked(await fetch("/api/transcribe", { method: "POST", body: form, signal: controller.signal }));
         const result = await response.json(); message = result.text;
         if (id !== session.current) return;
@@ -120,7 +123,13 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
       if (id === session.current) { inFlight.current = false; setBusy(false); }
     }
   }
+  function changeLanguage(next: ResponseLanguage) {
+    stopAudio(true); setRetryAudio(null); setResetKey(k => k + 1);
+    setLanguage(next);
+    setStatus(next === "ar" ? "Future responses will be in Arabic. Conversation history is preserved." : "Future responses will be in English. Conversation history is preserved.");
+  }
   const last = [...turns].reverse().find(turn => turn.role === "assistant");
+  const arabicAudioUnavailable = last?.language === "ar" && health?.tts.provider === "kokoro";
   return (
     <section aria-labelledby="conversation-title" className="min-w-0 border-t border-line pt-7 lg:border-t-0 lg:border-l lg:pl-9 lg:pt-0 xl:pl-12">
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -129,12 +138,24 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
       </div>
       <h2 id="conversation-title" className="font-display text-3xl">Begin with curiosity.</h2>
       <p className="mt-3 text-sm leading-6 text-muted">A manuscript offers an invitation. A scholarly guide helps you examine the evidence.</p>
+      <div className="mt-4">
+        <label htmlFor="response-language" className="mr-3 text-xs text-muted">Response language / <span lang="ar">لغة الرد</span></label>
+        <select id="response-language" value={language} disabled={busy} onChange={event => {
+          const next = event.target.value;
+          if (next === "en" || next === "ar") changeLanguage(next);
+        }} className="min-h-10 rounded-sm border border-line bg-white/40 px-3 text-sm disabled:opacity-50">
+          <option value="en">English</option>
+          <option value="ar" lang="ar">العربية</option>
+        </select>
+        <p className="mt-2 text-xs text-muted">Applies to new responses and speech recognition. Earlier messages stay in their original language.</p>
+        {language === "ar" && health?.tts.provider === "kokoro" && <p lang="ar" dir="rtl" className="mt-2 text-xs leading-6 text-muted">الردود العربية متاحة نصيًا؛ لا يدعم Kokoro النطق بالعربية.</p>}
+      </div>
       <div aria-label="Conversation transcript" role="log" aria-live="polite" aria-relevant="additions" className="mt-6 h-64 overflow-y-auto rounded-sm border border-line bg-white/35 p-5">
-        <article><SpeakerIndicator speaker="manuscript" /><p className="mt-3 font-display text-lg leading-7">{manuscript.demoIntroduction}</p></article>
+        <article><SpeakerIndicator speaker="manuscript" /><p lang={language} dir={language === "ar" ? "rtl" : "ltr"} className="mt-3 font-display text-lg leading-7">{language === "ar" ? "اسأل عن هذه الصفحات، أو اطلب من الدليل العلمي شرح الأدلة المتاحة. حديث المخطوط بضمير المتكلم أسلوب تفسيري." : manuscript.demoIntroduction}</p></article>
         {turns.map((turn, index) => (
           <article key={index} className="mt-5 border-t border-line pt-4">
             <SpeakerIndicator speaker={turn.role === "user" ? "visitor" : turn.response.speaker} />
-            <p className="mt-2 break-words text-sm leading-6">{turn.role === "user" ? turn.text : turn.response.text}</p>
+            <p lang={turn.role === "assistant" ? turn.language ?? "en" : undefined} dir={turn.role === "assistant" ? (turn.language === "ar" ? "rtl" : "ltr") : "auto"} className="mt-2 break-words text-sm leading-6">{turn.role === "user" ? turn.text : turn.response.text}</p>
             {turn.role === "assistant" && <p className="mt-2 text-xs text-muted">{turn.response.certainty}{turn.response.evidenceIds.length > 0 && ` · Evidence: ${turn.response.evidenceIds.join(", ")}`}</p>}
           </article>
         ))}
@@ -142,7 +163,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted">
         <span>{playing ? <><SpeakerIndicator speaker={playing} /> · Speaking</> : "AI-generated voices"}</span>
         <div className="flex gap-3">
-          <button type="button" disabled={!last || busy} onClick={() => { if (last?.role === "assistant") void play(last.response, !audioReady); }} className="min-h-8 disabled:opacity-50">↺ Replay</button>
+          <button type="button" title={arabicAudioUnavailable ? "Arabic playback is unavailable with Kokoro" : "Replay the last response in its original language"} disabled={!last || busy || arabicAudioUnavailable} onClick={() => { if (last?.role === "assistant") void play(last.response, !audioReady, last.language ?? "en"); }} className="min-h-8 disabled:opacity-50">↺ Replay</button>
           <button type="button" onClick={() => stopAudio()} className="min-h-8">□ Stop audio</button>
         </div>
       </div>
@@ -151,7 +172,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
       <form className="mt-4" onSubmit={event => { event.preventDefault(); if (question.trim()) void interact(question); }}>
         <label htmlFor="visitor-question" className="mb-2 block text-xs text-muted">Or type a question</label>
         <div className="flex overflow-hidden rounded-sm border border-line bg-white/40 focus-within:border-olive">
-          <input ref={inputRef} id="visitor-question" value={question} onChange={event => setQuestion(event.target.value)} maxLength={500} placeholder="What would you like to discover?" className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm" />
+          <input ref={inputRef} id="visitor-question" dir="auto" value={question} onChange={event => setQuestion(event.target.value)} maxLength={500} placeholder="What would you like to discover?" className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm" />
           <button type="submit" disabled={!question.trim() || busy} aria-label="Send question" className="m-1 min-h-10 min-w-10 rounded-sm px-3 text-olive disabled:opacity-35">↑</button>
         </div>
         <p className="mt-2 text-xs text-muted">Conversation stays in this tab until reset or reload. Audio is processed without being saved.</p>

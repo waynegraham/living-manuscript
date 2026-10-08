@@ -7,7 +7,7 @@ export default function Home() {
     <div className="mx-auto max-w-360 px-5 sm:px-10 lg:px-16">
       <a href="#experience" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:z-10 focus:bg-paper focus:p-3">Skip to the experience</a>
       <header className="flex items-center justify-between gap-4 border-b border-line py-6 sm:py-8">
-        <div className="flex items-center gap-4"><span className="text-xl font-medium tracking-[0.25em]">KAWLA</span><span aria-hidden="true" className="h-5 w-px bg-line" /><span className="hidden text-xs tracking-wide text-muted sm:block">An experiment in close looking</span></div>
+        <div className="flex items-center gap-4"><span className="text-xl font-medium tracking-[0.25em]">AlMadar Digital</span><span aria-hidden="true" className="h-5 w-px bg-line" /><span className="hidden text-xs tracking-wide text-muted sm:block">An experiment in close looking</span></div>
         <span className="rounded-full border border-line px-3 py-1.5 text-[10px] uppercase tracking-[0.15em] text-muted">Demonstration</span>
       </header>
       <main>

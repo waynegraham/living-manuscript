@@ -9,6 +9,7 @@ import platform
 import shutil
 import subprocess
 import tempfile
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -128,7 +129,7 @@ async def infer(kind, fn, *args):
         busy = False
 
 
-def recognize(raw, suffix):
+def recognize(raw, suffix, language="en"):
     import numpy as np
     import mlx_whisper
     # ffmpeg needs a seekable file for Safari's MP4. Removed even after failure.
@@ -145,7 +146,7 @@ def recognize(raw, suffix):
     samples = np.frombuffer(decoded, dtype=np.float32).copy()
     if not 0 < len(samples) <= int(30.5 * 16000):
         raise HTTPException(422, "Audio must be no longer than 30 seconds")
-    result = mlx_whisper.transcribe(samples, path_or_hf_repo=WHISPER, language="en", verbose=None)
+    result = mlx_whisper.transcribe(samples, path_or_hf_repo=WHISPER, language=language, verbose=None)
     return {"text": result["text"].strip()[:500]}
 
 
@@ -154,18 +155,21 @@ async def transcribe(request: Request):
     # Bound the multipart body before parsing it (including chunked requests).
     raw = await bounded_body(request, MAX_UPLOAD + 65536)
     request._body = raw
-    async with request.form(max_files=1, max_fields=3, max_part_size=MAX_UPLOAD) as form:
+    async with request.form(max_files=1, max_fields=4, max_part_size=MAX_UPLOAD) as form:
         file = form.get("file")
         if not file or not hasattr(file, "read"):
             raise HTTPException(422, "Audio file required")
         if form.get("model") != WHISPER:
             raise HTTPException(422, "Whisper model differs from service configuration")
+        language = form.get("language", "en")
+        if language not in ("en", "ar"):
+            raise HTTPException(422, "Choose English (en) or Arabic (ar)")
         mime = (file.content_type or "").split(";")[0]
         suffix = {"audio/webm": ".webm", "audio/mp4": ".mp4", "audio/ogg": ".ogg", "audio/wav": ".wav", "audio/x-wav": ".wav"}.get(mime)
         audio = await file.read(MAX_UPLOAD + 1)
         if not suffix or not 0 < len(audio) <= MAX_UPLOAD:
             raise HTTPException(422, "Unsupported audio or upload over 5 MB")
-    return await infer("stt", recognize, audio, suffix)
+    return await infer("stt", recognize, audio, suffix, language)
 
 
 class Speech(BaseModel):
@@ -173,6 +177,7 @@ class Speech(BaseModel):
     model: str
     voice: str
     response_format: str = "wav"
+    language: Literal["en", "ar"] = "en"
 
 
 def synthesize(payload):
@@ -197,6 +202,8 @@ async def speak(request: Request):
         payload = Speech.model_validate_json(raw)
     except ValueError:
         raise HTTPException(422, "Invalid speech request") from None
+    if payload.language == "ar":
+        raise HTTPException(422, "Kokoro does not support Arabic speech. Use the text response.")
     if payload.model != KOKORO or payload.voice not in VOICES or payload.response_format != "wav" or not payload.input.strip():
         raise HTTPException(422, "Unsupported model, voice, or format")
     return Response(await infer("tts", synthesize, payload), media_type="audio/wav")

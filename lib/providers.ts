@@ -1,5 +1,5 @@
 import { config } from "./config";
-import { AppError, responseSchema, type PersonaId } from "./schemas";
+import { AppError, responseSchema, type PersonaId, type ResponseLanguage } from "./schemas";
 const openaiUrl = "https://api.openai.com/v1";
 function headers(local = false): Record<string, string> {
   const key = local ? process.env.LM_STUDIO_API_KEY : process.env.OPENAI_API_KEY;
@@ -34,10 +34,10 @@ export async function complete(messages: { role: string; content: string }[]) {
   try { return JSON.parse(content.replace(/^\s*<think>[\s\S]*?<\/think>\s*/, "")); }
   catch { throw new AppError("The model returned invalid JSON. Disable Qwen3 thinking in LM Studio and try again.", 502); }
 }
-export async function transcribe(file: File) {
+export async function transcribe(file: File, language: ResponseLanguage = "en") {
   const c = config();
   if (c.stt === "disabled") throw new AppError("Speech recognition is disabled. Please type your question.", 503);
-  const form = new FormData(); form.set("file", file); form.set("model", c.stt === "mlx" ? c.whisperModel : c.openaiModels.stt); form.set("language", "en");
+  const form = new FormData(); form.set("file", file); form.set("model", c.stt === "mlx" ? c.whisperModel : c.openaiModels.stt); form.set("language", language);
   const response = await serviceFetch(c.stt === "mlx" ? `${c.speechUrl}/transcribe` : `${openaiUrl}/audio/transcriptions`, {
     method: "POST", headers: c.stt === "openai" ? headers() : {}, body: form,
   }, c.stt === "mlx" ? "MLX Whisper" : "OpenAI transcription");
@@ -45,13 +45,14 @@ export async function transcribe(file: File) {
   if (typeof result.text !== "string" || !result.text.trim()) throw new AppError("No speech was recognized. Try recording again or type your question.", 422);
   return result.text.trim().slice(0, 500);
 }
-export async function speak(input: string, speaker: PersonaId) {
+export async function speak(input: string, speaker: PersonaId, language: ResponseLanguage = "en") {
   const c = config();
   if (c.tts === "disabled") throw new AppError("Speech playback is disabled. The text response is available.", 503);
   const local = c.tts === "kokoro";
+  if (local && language === "ar") throw new AppError("Kokoro does not support Arabic speech. The Arabic text response is available.", 422);
   return serviceFetch(local ? `${c.speechUrl}/speak` : `${openaiUrl}/audio/speech`, {
     method: "POST", headers: { ...(local ? {} : headers()), "Content-Type": "application/json" },
-    body: JSON.stringify({ input, model: local ? c.kokoroModel : c.openaiModels.tts, voice: c.voices[local ? "kokoro" : "openai"][speaker], response_format: "wav" }),
+    body: JSON.stringify({ input, model: local ? c.kokoroModel : c.openaiModels.tts, voice: c.voices[local ? "kokoro" : "openai"][speaker], response_format: "wav", ...(local ? { language } : {}) }),
   }, local ? "Kokoro speech" : "OpenAI speech");
 }
 export async function health() {

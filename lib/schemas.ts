@@ -1,6 +1,7 @@
+export type ResponseLanguage = "en" | "ar";
 export type PersonaId = "manuscript" | "guide";
 export type ChatResponse = { speaker: PersonaId; text: string; certainty: "documented" | "interpretation" | "imaginative" | "unknown"; evidenceIds: string[]; viewerAction: null };
-export type Turn = { role: "user"; text: string } | { role: "assistant"; response: ChatResponse };
+export type Turn = ({ role: "user"; text: string } | { role: "assistant"; response: ChatResponse }) & { language?: ResponseLanguage };
 export class AppError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
@@ -14,6 +15,10 @@ export function text(value: unknown, max = 2000): string {
 }
 export function speaker(value: unknown): PersonaId {
   if (value !== "manuscript" && value !== "guide") throw new AppError("Choose manuscript or guide.");
+  return value;
+}
+export function language(value: unknown = "en"): ResponseLanguage {
+  if (value !== "en" && value !== "ar") throw new AppError("Choose English (en) or Arabic (ar).");
   return value;
 }
 export const responseSchema = {
@@ -40,14 +45,16 @@ export function validateResponse(value: unknown, evidenceIds: readonly string[])
 export function validateChat(value: unknown, evidenceIds: readonly string[]) {
   const v = object(value);
   const message = text(v.message, 500);
+  const responseLanguage = language(v.language);
   if (!Array.isArray(v.history) || v.history.length > 20) throw new AppError("History must contain at most 20 turns.");
   const history: Turn[] = v.history.map(item => {
     const turn = object(item);
-    if (turn.role === "user") return { role: "user", text: text(turn.text, 500) };
-    if (turn.role === "assistant") return { role: "assistant", response: validateResponse(turn.response, evidenceIds) };
+    const metadata = turn.language === undefined ? {} : { language: language(turn.language) };
+    if (turn.role === "user") return { role: "user", text: text(turn.text, 500), ...metadata };
+    if (turn.role === "assistant") return { role: "assistant", response: validateResponse(turn.response, evidenceIds), ...metadata };
     throw new AppError("Invalid conversation turn.");
   });
-  return { message, history };
+  return { message, history, language: responseLanguage };
 }
 export async function readJson(request: Request) {
   return JSON.parse(await readBody(request, 64 * 1024));
