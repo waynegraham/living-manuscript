@@ -7,7 +7,7 @@ import PushToTalk from "./PushToTalk";
 import SpeakerIndicator from "./SpeakerIndicator";
 import SuggestedQuestions from "./SuggestedQuestions";
 
-type Health = Record<"llm" | "stt" | "tts", { provider: string; available: boolean; message: string }>;
+type Health = Record<"llm" | "stt" | "tts" | "ttsAr", { provider: string; available: boolean; message: string }>;
 async function checked(response: Response) {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -94,9 +94,8 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
     if (id !== session.current) return;
     setTurns(previous => [...previous, { role: "user", text: message, language } as Turn, { role: "assistant", response: answer, language } as Turn].slice(-20));
     setQuestion(""); setStatus("Response received.");
-    if (language === "ar" && health?.tts.provider === "kokoro") {
-      setStatus("Arabic response received. Kokoro playback is available only for English responses.");
-    } else if (health?.tts.provider !== "disabled") void play(answer, true, language);
+    const speech = language === "ar" ? health?.ttsAr : health?.tts;
+    if (speech?.provider !== "disabled") void play(answer, true, language);
   }
   async function interact(message?: string, recording?: { blob: Blob; duration: number }) {
     if (inFlight.current) return;
@@ -129,7 +128,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
     setStatus(next === "ar" ? "Future responses will be in Arabic. Conversation history is preserved." : "Future responses will be in English. Conversation history is preserved.");
   }
   const last = [...turns].reverse().find(turn => turn.role === "assistant");
-  const arabicAudioUnavailable = last?.language === "ar" && health?.tts.provider === "kokoro";
+  const lastSpeech = last?.language === "ar" ? health?.ttsAr : health?.tts;
   return (
     <section aria-labelledby="conversation-title" className="min-w-0 border-t border-line pt-7 lg:border-t-0 lg:border-l lg:pl-9 lg:pt-0 xl:pl-12">
       <div className="mb-5 flex items-center justify-between gap-4">
@@ -148,7 +147,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
           <option value="ar" lang="ar">العربية</option>
         </select>
         <p className="mt-2 text-xs text-muted">Applies to new responses and speech recognition. Earlier messages stay in their original language.</p>
-        {language === "ar" && health?.tts.provider === "kokoro" && <p lang="ar" dir="rtl" className="mt-2 text-xs leading-6 text-muted">الردود العربية متاحة نصيًا؛ لا يدعم Kokoro النطق بالعربية.</p>}
+        {language === "ar" && health?.ttsAr?.provider === "nabra" && <p lang="ar" dir="rtl" className="mt-2 text-xs leading-6 text-muted">يستخدم المخطوط والدليل العلمي صوتًا سعوديًا واحدًا من Nabra.</p>}
       </div>
       <div aria-label="Conversation transcript" role="log" aria-live="polite" aria-relevant="additions" className="mt-6 h-64 overflow-y-auto rounded-sm border border-line bg-white/35 p-5">
         <article><SpeakerIndicator speaker="manuscript" /><p lang={language} dir={language === "ar" ? "rtl" : "ltr"} className="mt-3 font-display text-lg leading-7">{language === "ar" ? "اسأل عن هذه الصفحات، أو اطلب من الدليل العلمي شرح الأدلة المتاحة. حديث المخطوط بضمير المتكلم أسلوب تفسيري." : manuscript.demoIntroduction}</p></article>
@@ -163,7 +162,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted">
         <span>{playing ? <><SpeakerIndicator speaker={playing} /> · Speaking</> : "AI-generated voices"}</span>
         <div className="flex gap-3">
-          <button type="button" title={arabicAudioUnavailable ? "Arabic playback is unavailable with Kokoro" : "Replay the last response in its original language"} disabled={!last || busy || arabicAudioUnavailable} onClick={() => { if (last?.role === "assistant") void play(last.response, !audioReady, last.language ?? "en"); }} className="min-h-8 disabled:opacity-50">↺ Replay</button>
+          <button type="button" title="Replay the last response in its original language" disabled={!last || busy || lastSpeech?.provider === "disabled"} onClick={() => { if (last?.role === "assistant") void play(last.response, !audioReady, last.language ?? "en"); }} className="min-h-8 disabled:opacity-50">↺ Replay</button>
           <button type="button" onClick={() => stopAudio()} className="min-h-8">□ Stop audio</button>
         </div>
       </div>
@@ -179,7 +178,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
       </form>
       <p role="status" className="mt-3 text-xs leading-5 text-terracotta">{status}</p>
       <details className="mt-4 text-xs text-muted"><summary>Model service status</summary>
-        {health && Object.entries(health).map(([kind, service]) => <p key={kind} className="mt-2">{kind.toUpperCase()} ({service.provider}): {service.available ? "Available" : "Unavailable"}. {service.message}</p>)}
+        {health && Object.entries(health).map(([kind, service]) => <p key={kind} className="mt-2">{kind === "ttsAr" ? "Arabic speech" : kind.toUpperCase()} ({service.provider}): {service.available ? "Available" : "Unavailable"}. {service.message}</p>)}
         <p>{healthError}</p><button type="button" onClick={() => { void checkHealth(); }} className="mt-2 min-h-8 underline">Refresh status</button>
       </details>
       <div className="mt-6"><SuggestedQuestions questions={manuscript.suggestedQuestions} onSelect={selected => { setQuestion(selected); inputRef.current?.focus(); }} /></div>

@@ -1,4 +1,4 @@
-import { config } from "./config";
+import { config, speechProvider } from "./config";
 import { AppError, responseSchema, type PersonaId, type ResponseLanguage } from "./schemas";
 const openaiUrl = "https://api.openai.com/v1";
 function headers(local = false): Record<string, string> {
@@ -46,14 +46,15 @@ export async function transcribe(file: File, language: ResponseLanguage = "en") 
   return result.text.trim().slice(0, 500);
 }
 export async function speak(input: string, speaker: PersonaId, language: ResponseLanguage = "en") {
-  const c = config();
-  if (c.tts === "disabled") throw new AppError("Speech playback is disabled. The text response is available.", 503);
-  const local = c.tts === "kokoro";
-  if (local && language === "ar") throw new AppError("Kokoro does not support Arabic speech. The Arabic text response is available.", 422);
+  const c = config(); const provider = speechProvider(language, c);
+  if (provider === "disabled") throw new AppError("Speech playback is disabled for this language. The text response is available.", 503);
+  const local = provider !== "openai";
+  const model = provider === "nabra" ? c.nabraModel : provider === "kokoro" ? c.kokoroModel : c.openaiModels.tts;
+  const voice = provider === "nabra" ? "af_msa" : c.voices[provider === "kokoro" ? "kokoro" : "openai"][speaker];
   return serviceFetch(local ? `${c.speechUrl}/speak` : `${openaiUrl}/audio/speech`, {
     method: "POST", headers: { ...(local ? {} : headers()), "Content-Type": "application/json" },
-    body: JSON.stringify({ input, model: local ? c.kokoroModel : c.openaiModels.tts, voice: c.voices[local ? "kokoro" : "openai"][speaker], response_format: "wav", ...(local ? { language } : {}) }),
-  }, local ? "Kokoro speech" : "OpenAI speech");
+    body: JSON.stringify({ input, model, voice, response_format: "wav", ...(local ? { language } : {}) }),
+  }, provider === "nabra" ? "Nabra Arabic speech" : local ? "Kokoro speech" : "OpenAI speech");
 }
 export async function health() {
   const c = config();
@@ -66,19 +67,19 @@ export async function health() {
     } catch (e) { return { provider: c.llm, available: false, message: e instanceof AppError ? e.message : "Model check failed." }; }
   };
   const speech = async () => {
-    if (c.stt !== "mlx" && c.tts !== "kokoro") return null;
+    if (c.stt !== "mlx" && c.tts !== "kokoro" && speechProvider("ar", c) !== "nabra") return null;
     try { return await (await serviceFetch(`${c.speechUrl}/health`, {}, "Local speech service", 4000)).json(); }
     catch { return null; }
   };
   const [chat, local] = await Promise.all([llm(), speech()]);
-  function audio(kind: "stt" | "tts") {
-    const provider = c[kind];
+  function audio(kind: "stt" | "tts" | "tts_ar") {
+    const provider = kind === "tts_ar" ? speechProvider("ar", c) : c[kind];
     if (provider === "disabled") return { provider, available: false, message: "Disabled; text interaction is available." };
     if (provider === "openai") return { provider, available: Boolean(process.env.OPENAI_API_KEY), message: "Remote provider; inference is checked on use." };
-    const state = local?.[kind]; const model = kind === "stt" ? c.whisperModel : c.kokoroModel;
-    const match = state?.model === model;
-    const voicesMatch = kind !== "tts" || Object.values(c.voices.kokoro).every(v => state?.voices?.includes(v));
-    return { provider, model, available: Boolean(state?.available && match && voicesMatch), message: !local ? "Start the local speech service. You can still type questions." : !match ? "Model settings differ. Restart the speech service with .env.local." : !voicesMatch ? "Configured Kokoro voices were not loaded. Restart the speech service." : state.message };
+    const state = local?.[kind]; const model = kind === "stt" ? c.whisperModel : kind === "tts_ar" ? c.nabraModel : c.kokoroModel;
+    const match = state?.model === model && (kind !== "tts_ar" || state?.revision === c.nabraRevision);
+    const voicesMatch = kind === "tts_ar" ? state?.voices?.includes("af_msa") : kind !== "tts" || Object.values(c.voices.kokoro).every(v => state?.voices?.includes(v));
+    return { provider, model, available: Boolean(state?.available && match && voicesMatch), message: !local ? "Start the local speech service. You can still type questions." : !match ? "Model settings differ. Restart the speech service with .env.local." : !voicesMatch ? "Configured speech voices were not loaded. Restart the speech service." : state.message };
   }
-  return { llm: chat, stt: audio("stt"), tts: audio("tts") };
+  return { llm: chat, stt: audio("stt"), tts: audio("tts"), ttsAr: audio("tts_ar") };
 }

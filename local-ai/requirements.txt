@@ -8,3 +8,11 @@ mlx-audio>=0.3,<0.4
 misaki[en]>=0.9.4,<0.10
 soundfile>=0.13,<0.14
 numpy>=2,<3
+
+# Nabra uses its own patched Kokoro runtime from a pinned HF snapshot on CPU.
+# camel-tools is unnecessary: the Saudi loader disables MSA diacritization.
+torch>=2.6,<3
+huggingface-hub>=0.34,<2
+loguru>=0.7,<1
+attrs>=25,<27
+phonemizer-fork>=3.3.2,<4

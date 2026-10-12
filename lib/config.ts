@@ -16,6 +16,9 @@ export function config() {
     llm: choose("LLM_PROVIDER", "lmstudio", ["lmstudio", "openai"]),
     stt: choose("STT_PROVIDER", "mlx", ["mlx", "openai", "disabled"]),
     tts: choose("TTS_PROVIDER", "kokoro", ["kokoro", "openai", "disabled"]),
+    arabicTts: choose("ARABIC_TTS_PROVIDER", "nabra", ["nabra", "openai", "disabled"]),
+    nabraModel: process.env.NABRA_MODEL || "oddadmix/Nabra-Saudi-82M",
+    nabraRevision: process.env.NABRA_REVISION || "ed4a932ebb5a154e742ae14321a7435853164b9f",
     lmUrl: localUrl(process.env.LM_STUDIO_BASE_URL || "http://127.0.0.1:1234/v1"),
     lmModel: process.env.LM_STUDIO_MODEL || "qwen3-8b",
     speechUrl: localUrl(process.env.LOCAL_SPEECH_BASE_URL || "http://127.0.0.1:8001"),
@@ -27,4 +30,9 @@ export function config() {
     },
     openaiModels: { llm: process.env.OPENAI_LLM_MODEL || "gpt-4o-mini", stt: process.env.OPENAI_STT_MODEL || "whisper-1", tts: process.env.OPENAI_TTS_MODEL || "tts-1" },
   };
+}
+
+export function speechProvider(language: "en" | "ar", c = config()) {
+  if (c.tts === "disabled") return "disabled";
+  return language === "ar" ? c.arabicTts : c.tts;
 }

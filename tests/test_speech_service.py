@@ -99,6 +99,25 @@ class SpeechTests(unittest.TestCase):
             self.assertIn("Arabic", response.json()["detail"])
             synthesize.assert_not_called()
 
+    def test_nabra_returns_arabic_wav_without_using_english_model(self):
+        class Nabra:
+            def generate(self, text):
+                return np.zeros(2400, dtype=np.float32)
+        server.models["tts_ar"] = Nabra()
+        # Startup state is established separately; the HTTP test exercises routing.
+        server.state.setdefault("tts_ar", {})["available"] = True
+        response = self.client.post("/speak", json={"input": "يا هلا", "language": "ar", "model": "oddadmix/Nabra-Saudi-82M", "voice": "af_msa"})
+        self.assertEqual(response.status_code, 200)
+        samples, rate = sf.read(io.BytesIO(response.content))
+        self.assertEqual(rate, 24000)
+        self.assertEqual(len(samples), 2400)
+
+    def test_arabic_service_failure_does_not_disable_english(self):
+        server.state.setdefault("tts_ar", {})["available"] = False
+        response = self.client.post("/speak", json={"input": "يا هلا", "language": "ar", "model": "oddadmix/Nabra-Saudi-82M", "voice": "af_msa"})
+        self.assertEqual(response.status_code, 503)
+        self.assertTrue(server.state["tts"]["available"])
+
     def test_transcription_rejects_model_mismatch_and_oversized_body(self):
         response = self.client.post("/transcribe", files={"file": ("q.webm", b"audio", "audio/webm")}, data={"model": "other"})
         self.assertEqual(response.status_code, 422)

@@ -18,6 +18,9 @@ from pydantic import BaseModel, Field
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env.local")
 WHISPER = os.getenv("MLX_WHISPER_MODEL", "mlx-community/whisper-large-v3-turbo")
+NABRA = os.getenv("NABRA_MODEL", "oddadmix/Nabra-Saudi-82M")
+NABRA_REVISION = os.getenv("NABRA_REVISION", "ed4a932ebb5a154e742ae14321a7435853164b9f")
+NABRA_ENABLED = os.getenv("TTS_PROVIDER", "kokoro") != "disabled" and os.getenv("ARABIC_TTS_PROVIDER", "nabra") == "nabra"
 KOKORO = os.getenv("KOKORO_MODEL", "mlx-community/Kokoro-82M-bf16")
 VOICES = {os.getenv("KOKORO_MANUSCRIPT_VOICE", "af_heart"), os.getenv("KOKORO_GUIDE_VOICE", "am_adam")}
 STT_ENABLED = os.getenv("STT_PROVIDER", "mlx") == "mlx"
@@ -29,13 +32,14 @@ state = {
     "stt": {"available": False, "model": WHISPER, "message": "Loading Whisper…" if STT_ENABLED else "Disabled"},
     "tts": {"available": False, "model": KOKORO, "voices": sorted(VOICES), "message": "Loading Kokoro…" if TTS_ENABLED else "Disabled"},
 }
+state["tts_ar"] = {"available": False, "model": NABRA, "revision": NABRA_REVISION, "voices": ["af_msa"], "message": "Loading Nabra…" if NABRA_ENABLED else "Disabled"}
 models = {}
 busy = False
 
 
 def load_models():
     supported = platform.system() == "Darwin" and platform.machine() == "arm64"
-    for kind, enabled in (("stt", STT_ENABLED), ("tts", TTS_ENABLED)):
+    for kind, enabled in (("stt", STT_ENABLED), ("tts", TTS_ENABLED), ("tts_ar", NABRA_ENABLED)):
         if not enabled:
             continue
         if not supported:
@@ -44,10 +48,18 @@ def load_models():
         if kind == "stt" and not shutil.which("ffmpeg"):
             state[kind].update(available=False, message="Install ffmpeg with brew install ffmpeg and restart the service.")
             continue
+        if kind == "tts_ar" and not shutil.which("espeak-ng"):
+            state[kind].update(available=False, message="Install espeak-ng with brew install espeak-ng and restart the service.")
+            continue
         if kind == "tts" and len(VOICES) != 2:
             state[kind].update(available=False, message="Choose two distinct Kokoro voices and restart the service.")
             continue
         try:
+            if kind == "tts_ar":
+                from nabra import NabraSpeech
+                models[kind] = NabraSpeech(NABRA, NABRA_REVISION)
+                state[kind].update(available=True, message="Nabra loaded; both personas share its single Saudi Arabic voice.")
+                continue
             import mlx.core as mx
             if kind == "stt":
                 from mlx_whisper.transcribe import ModelHolder
@@ -68,7 +80,7 @@ def load_models():
             state[kind].update(available=True, message="Model loaded and ready.")
         except Exception as exc:
             print(f"{kind.upper()} startup failed ({type(exc).__name__}). Check installation, model cache, and configuration.", flush=True)
-            state[kind].update(available=False, message=f"Could not load {kind.upper()}. Check arm64 Python, ffmpeg, dependencies, model path/cache, and voice settings; restart the service.")
+            state[kind].update(available=False, message=f"Could not load {kind.upper()}. Check arm64 Python, ffmpeg, dependencies, model path/cache, espeak-ng, and voice settings; restart the service.")
 
 
 @asynccontextmanager
@@ -195,6 +207,14 @@ def synthesize(payload):
     return output.getvalue()
 
 
+def synthesize_arabic(payload):
+    import soundfile as sf
+    audio = models["tts_ar"].generate(payload.input)
+    output = io.BytesIO()
+    sf.write(output, audio, 24000, format="WAV", subtype="PCM_16")
+    return output.getvalue()
+
+
 @app.post("/speak")
 async def speak(request: Request):
     raw = await bounded_body(request, 16384)
@@ -203,7 +223,9 @@ async def speak(request: Request):
     except ValueError:
         raise HTTPException(422, "Invalid speech request") from None
     if payload.language == "ar":
-        raise HTTPException(422, "Kokoro does not support Arabic speech. Use the text response.")
+        if payload.model != NABRA or payload.voice != "af_msa" or payload.response_format != "wav" or not payload.input.strip():
+            raise HTTPException(422, "Unsupported Arabic model, voice, or format")
+        return Response(await infer("tts_ar", synthesize_arabic, payload), media_type="audio/wav")
     if payload.model != KOKORO or payload.voice not in VOICES or payload.response_format != "wav" or not payload.input.strip():
         raise HTTPException(422, "Unsupported model, voice, or format")
     return Response(await infer("tts", synthesize, payload), media_type="audio/wav")

@@ -40,7 +40,7 @@ const originalEnv = { ...process.env };
 after(() => { globalThis.fetch = originalFetch; process.env = originalEnv; rmSync(output, { recursive: true, force: true }); });
 const answer = { speaker: 'manuscript', text: 'My date is not established by the available record.', certainty: 'unknown', evidenceIds: [], viewerAction: null };
 function request(body) { return new Request('http://localhost/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
-function local() { process.env.LLM_PROVIDER = 'lmstudio'; process.env.STT_PROVIDER = 'mlx'; process.env.TTS_PROVIDER = 'kokoro'; delete process.env.OPENAI_API_KEY; }
+function local() { process.env.LLM_PROVIDER = 'lmstudio'; process.env.STT_PROVIDER = 'mlx'; process.env.TTS_PROVIDER = 'kokoro'; process.env.ARABIC_TTS_PROVIDER = 'nabra'; delete process.env.OPENAI_API_KEY; }
 
 await test('knowledge retains supplied evidence and unknown dates without invented metadata', () => {
   assert.equal(manuscript.date, null);
@@ -165,7 +165,7 @@ await test('response language defaults to English and rejects unsupported values
 await test('Arabic instructions override history language while keeping evidence and JSON contract', () => {
   const history = [{ role: 'user', text: 'Who are you?', language: 'en' }, { role: 'assistant', response: answer, language: 'en' }];
   const messages = messagesFor('Tell me more', history, 'ar');
-  assert.match(messages[0].content, /clear Modern Standard Arabic/);
+  assert.match(messages[0].content, /clear, accessible Saudi Arabic/);
   assert.match(messages[0].content, /both personas regardless/);
   assert.match(messages[0].content, /evidence identifiers unchanged/);
   assert.equal(messages.at(-2).content, JSON.stringify(answer));
@@ -178,7 +178,7 @@ await test('chat accepts Arabic responses and retains bilingual context when swi
   let expected = arabic;
   globalThis.fetch = async (_url, init) => {
     const body = JSON.parse(init.body);
-    assert.match(body.messages[0].content, expected === arabic ? /Modern Standard Arabic/ : /response text in English/);
+    assert.match(body.messages[0].content, expected === arabic ? /Saudi Arabic/ : /response text in English/);
     if (expected === answer) assert.equal(JSON.parse(body.messages.at(-2).content).text, arabic.text);
     return Response.json({ choices: [{ message: { content: JSON.stringify(expected) } }] });
   };
@@ -188,10 +188,10 @@ await test('chat accepts Arabic responses and retains bilingual context when swi
   const second = await chatRoute.POST(request({ message: 'What else is unknown?', language: 'en', history: [{ role: 'user', text: 'How old are you?', language: 'ar' }, { role: 'assistant', response: arabic, language: 'ar' }] }));
   assert.equal(second.status, 200); assert.deepEqual(await second.json(), answer);
 });
-await test('Arabic Kokoro requests return text-only guidance without network inference', async () => {
-  local(); globalThis.fetch = async () => { assert.fail('Arabic must not reach Kokoro'); };
+await test('disabled Arabic playback returns text-only guidance without network inference', async () => {
+  local(); process.env.ARABIC_TTS_PROVIDER = 'disabled'; globalThis.fetch = async () => { assert.fail('Arabic must not reach Kokoro'); };
   const response = await ttsRoute.POST(request({ text: 'مرحبًا', speaker: 'guide', language: 'ar' }));
-  assert.equal(response.status, 422); assert.match((await response.json()).error, /Arabic text response is available/);
+  assert.equal(response.status, 503); assert.match((await response.json()).error, /text response is available/);
 });
 await test('Arabic recording language passes through the transcription route', async () => {
   local();
@@ -201,4 +201,39 @@ await test('Arabic recording language passes through the transcription route', a
   const form = new FormData(); form.set('file', new Blob(['audio'], { type: 'audio/webm' }), 'question.webm'); form.set('duration', '5'); form.set('language', 'ar');
   const response = await sttRoute.POST(new Request('http://localhost/api/transcribe', { method: 'POST', body: form }));
   assert.equal(response.status, 200); assert.equal((await response.json()).text, 'من أنت؟');
+});
+
+await test('Arabic speech routes to Nabra while English retains two Kokoro voices', async () => {
+  local(); process.env.ARABIC_TTS_PROVIDER = 'nabra';
+  const calls = [];
+  globalThis.fetch = async (url, init) => { calls.push({ url, body: JSON.parse(init.body) }); return new Response('wav'); };
+  for (const speaker of ['manuscript', 'guide']) {
+    const response = await ttsRoute.POST(request({ text: 'يا هلا', speaker, language: 'ar' }));
+    assert.equal(response.status, 200);
+  }
+  await ttsRoute.POST(request({ text: 'Hello', speaker: 'guide', language: 'en' }));
+  assert.equal(calls[0].url, 'http://127.0.0.1:8001/speak');
+  assert.equal(calls[0].body.model, 'oddadmix/Nabra-Saudi-82M');
+  assert.equal(calls[0].body.voice, 'af_msa');
+  assert.equal(calls[1].body.voice, 'af_msa');
+  assert.equal(calls[2].body.voice, 'am_adam');
+});
+await test('Nabra failure preserves independent English readiness', async () => {
+  local(); process.env.ARABIC_TTS_PROVIDER = 'nabra';
+  globalThis.fetch = async url => String(url).endsWith('/models') ? Response.json({ data: [{ id: 'qwen3-test' }] }) : Response.json({
+    stt: { available: true, model: config().whisperModel },
+    tts: { available: true, model: config().kokoroModel, voices: ['af_heart', 'am_adam'], message: 'Ready' },
+    tts_ar: { available: false, model: 'oddadmix/Nabra-Saudi-82M', revision: config().nabraRevision, voices: ['af_msa'], message: 'Nabra could not load' },
+  });
+  const result = await providers.health();
+  assert.equal(result.tts.available, true);
+  assert.ok(result.ttsAr, "Arabic readiness must be reported separately");
+  assert.equal(result.ttsAr.provider, 'nabra');
+  assert.equal(result.ttsAr.available, false);
+  assert.match(result.ttsAr.message, /Nabra/);
+});
+await test('global speech disable suppresses Arabic inference', async () => {
+  local(); process.env.TTS_PROVIDER = 'disabled'; process.env.ARABIC_TTS_PROVIDER = 'nabra';
+  await assert.rejects(() => providers.speak('يا هلا', 'guide', 'ar'), /disabled/);
+  local();
 });
