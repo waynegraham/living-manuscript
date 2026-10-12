@@ -2,6 +2,8 @@
 
 A Next.js museum prototype with one conversational orchestrator, two personas, push-to-talk, a transcript, and local inference on macOS Apple Silicon. Default inference stays on your Mac: Qwen3-8B through LM Studio, Whisper large-v3-turbo through MLX, Kokoro-82M through MLX-Audio for English, and Nabra-Saudi-82M through PyTorch on CPU for Arabic. No database, CMS, account, conversation storage, or cloud deployment is required.
 
+The visual design adapts the [AlMadar object page](https://staging-almadar.biennale.org.sa/en/objects/25-MK-02-0055): Public Sans, deep blue (`#222d64`), warm gray (`#ece8e5`), black text, and uppercase headings. The Latin Public Sans variable font is hosted locally in `public/fonts`, with its OFL license. Arabic text currently uses the system sans-serif fallback; the reference’s licensed Arabic fonts are not bundled.
+
 ## Install on Apple Silicon
 
 Use a native arm64 terminal, macOS compatible with your installed MLX version, Node.js 20.9+ (Node 22 LTS recommended), and Python 3.11. The project uses npm and its existing lockfile. A 36 GB Mac can use Qwen3-8B 4-bit alongside the speech models; select smaller models if memory pressure requires it.
@@ -156,7 +158,7 @@ Server requests and model outputs are bounded. Up to 20 transcript turns remain 
 
 ## Manuscript knowledge and privacy
 
-`data/manuscript.json` remains the authoritative source. The supplied record is preserved; dates and scribes are not invented. The interface reads the current `imageUrl` and optional metadata. A JPEG derivative of the supplied TIFF is used for browser compatibility without changing the original TIFF or knowledge JSON.
+`data/manuscript.json` remains the authoritative source. The supplied record is preserved; dates and scribes are not invented. The interface reads the current `imageUrl` and optional metadata. `imageServiceUrl` points to the manuscript’s IIIF Image API service; OpenSeadragon loads its `info.json` and high-resolution tiles directly in the browser. Drag to pan, pinch to zoom, or use the keyboard-accessible zoom and reset controls. The IIIF service must allow cross-origin requests. If it fails, a local JPEG derivative of the supplied TIFF remains available as a study image. The conversation continues independently of the viewer.
 
 No transcripts or recordings are retained by the application on disk. Browser session memory retains the conversation and optionally a recording for retry until reset or reload. The speech bridge uses a temporary file for ffmpeg's MP4 decoding and removes it after decoding, including on error; multipart parser temporary uploads are closed after use. WAV synthesis stays in memory. Model weights and dependencies are cached on disk. Fixed stage names and elapsed milliseconds are logged; visitor text, audio, keys, and upstream error bodies are not logged. Keep the app and model services local; public use would require rate limiting and abuse protection.
 

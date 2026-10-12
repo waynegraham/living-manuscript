@@ -12,12 +12,14 @@
   },
   "dependencies": {
     "next": "16.4.0",
+    "openseadragon": "^6.1.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.0.0",
+    "@types/openseadragon": "^5.0.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",

@@ -135,7 +135,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
         <span className="eyebrow">02 / The encounter</span>
         <button onClick={reset} type="button" className="min-h-10 px-2 text-xs text-muted underline underline-offset-4">Reset conversation</button>
       </div>
-      <h2 id="conversation-title" className="font-display text-3xl">Begin with curiosity.</h2>
+      <h2 id="conversation-title" className="font-display text-3xl tracking-tight uppercase">Begin with curiosity.</h2>
       <p className="mt-3 text-sm leading-6 text-muted">A manuscript offers an invitation. A scholarly guide helps you examine the evidence.</p>
       <div className="mt-4">
         <label htmlFor="response-language" className="mr-3 text-xs text-muted">Response language / <span lang="ar">لغة الرد</span></label>

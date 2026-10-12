@@ -6,6 +6,7 @@
   "language": "Arabic",
   "description": "Historical manuscript from the KAWLA collection.",
   "imageUrl": "/manuscripts/00003-747-AB009300.tif",
+  "imageServiceUrl": "https://iiif-staging-almadar.biennale.org.sa/iiif/3/00003-747-AB009300.tif/",
   "facts": [
     {
       "id": "fact-001",
