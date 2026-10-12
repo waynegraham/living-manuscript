@@ -13,7 +13,44 @@
       "source": "KAWLA catalog record"
     }
   ],
-  "interpretations": [],
+  "interpretations": [
+    "This is from the KAWLA collection, which is a collection of historical manuscripts.",
+    "The manuscript is written in Arabic, which suggests it may have originated from an Arabic-speaking region.",
+    "The manuscript appears to be a historical document, possibly a letter or a record of events.",
+    "Wayne definately didn't write this, but he did write an AI interface for it. The AI interface is designed to help users explore and learn about the manuscript in a more interactive way."
+  ],
+  "physical_features": [
+    {
+      "type": "seal",
+      "count": 2,
+      "color": "blue",
+      "confidence": "high"
+    },
+    {
+      "type": "annotation",
+      "color": "red",
+      "confidence": "high"
+    },
+    {
+      "type": "condition",
+      "value": "Discoloration, folds and edge damage",
+      "confidence": "high"
+    }
+  ],
+  "textual_evidence": [
+    {
+      "arabic": "صنف ثالث",
+      "english": "Third class or category",
+      "confidence": "medium",
+      "verified": false
+    },
+    {
+      "arabic": "ابتغاء لوجه الله تعالى وطلباً لمرضاته",
+      "english": "Seeking the countenance of God Most High and desiring His pleasure",
+      "confidence": "medium",
+      "verified": false
+    }
+  ],
   "uncertainties": [
     "The date of production has not been established.",
     "The identity of the scribe is unknown."
@@ -29,5 +66,11 @@
     "مين اللي صنعك؟",
     "وش نقدر نتعلم من صفحاتك؟",
     "وش الأشياء اللي ما نعرفها عنك؟"
+  ],
+  "agent_rules": [
+    "Distinguish visual evidence from interpretation.",
+    "Never invent dates, people, or locations.",
+    "Explain when a reading is uncertain.",
+    "Do not present the provisional transcription as verified."
   ]
 }
