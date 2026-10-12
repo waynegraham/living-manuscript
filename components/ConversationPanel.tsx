@@ -181,7 +181,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
         {health && Object.entries(health).map(([kind, service]) => <p key={kind} className="mt-2">{kind === "ttsAr" ? "Arabic speech" : kind.toUpperCase()} ({service.provider}): {service.available ? "Available" : "Unavailable"}. {service.message}</p>)}
         <p>{healthError}</p><button type="button" onClick={() => { void checkHealth(); }} className="mt-2 min-h-8 underline">Refresh status</button>
       </details>
-      <div className="mt-6"><SuggestedQuestions questions={manuscript.suggestedQuestions} onSelect={selected => { setQuestion(selected); inputRef.current?.focus(); }} /></div>
+      <div className="mt-6"><SuggestedQuestions questions={manuscript.suggestedQuestions} arabicQuestions={manuscript.suggestedQuestionsArabic} language={language} onSelect={selected => { setQuestion(selected); inputRef.current?.focus(); }} /></div>
     </section>
   );
 }

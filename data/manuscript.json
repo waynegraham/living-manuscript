@@ -23,5 +23,11 @@
     "Who created you?",
     "What can we learn from your pages?",
     "What don't we know about you?"
+  ],
+  "suggestedQuestionsArabic": [
+    "كلمني عن نفسك.",
+    "مين اللي صنعك؟",
+    "وش نقدر نتعلم من صفحاتك؟",
+    "وش الأشياء اللي ما نعرفها عنك؟"
   ]
 }
