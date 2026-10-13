@@ -237,3 +237,41 @@ await test('global speech disable suppresses Arabic inference', async () => {
   await assert.rejects(() => providers.speak('يا هلا', 'guide', 'ar'), /disabled/);
   local();
 });
+
+await test('approved text region survives response and conversation-history validation', () => {
+  const zoomAnswer = { ...answer, viewerAction: { type: 'zoom', regionId: 'top-writing' } };
+  assert.deepEqual(schemas.validateResponse(zoomAnswer, evidenceIds, ['top-writing']), zoomAnswer);
+  const result = schemas.validateChat({ message: 'Tell me more', history: [{ role: 'assistant', response: zoomAnswer }] }, evidenceIds, ['top-writing']);
+  assert.deepEqual(result.history[0].response.viewerAction, zoomAnswer.viewerAction);
+});
+await test('viewer actions reject invented regions, arbitrary coordinates, and extra instructions', () => {
+  for (const viewerAction of [
+    { type: 'zoom', regionId: 'invented' },
+    { type: 'zoom', regionId: 'top-writing', x: 10 },
+    { type: 'execute', regionId: 'top-writing' },
+    { type: 'zoom' },
+  ]) assert.throws(() => schemas.validateResponse({ ...answer, viewerAction }, evidenceIds, ['top-writing']));
+});
+await test('chat endpoint returns an approved zoom action and retains it in follow-up context', async () => {
+  local();
+  const zoomAnswer = { ...answer, viewerAction: { type: 'zoom', regionId: 'top-writing' } };
+  globalThis.fetch = async () => Response.json({ choices: [{ message: { content: JSON.stringify(zoomAnswer) } }] });
+  const response = await chatRoute.POST(request({ message: 'Can you show me the writing at the top?', history: [] }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), zoomAnswer);
+  const followup = await chatRoute.POST(request({ message: 'What does it mean?', history: [{ role: 'assistant', response: zoomAnswer }] }));
+  assert.equal(followup.status, 200);
+});
+
+await test('middle stamp zoom works through the chat endpoint and a follow-up to the writing', async () => {
+  local();
+  const stampAnswer = { ...answer, text: 'Let us look at the blue stamp near the middle. Its owner is not established in the supplied record.', viewerAction: { type: 'zoom', regionId: 'middle-stamp' } };
+  globalThis.fetch = async () => Response.json({ choices: [{ message: { content: JSON.stringify(stampAnswer) } }] });
+  const response = await chatRoute.POST(request({ message: 'Can you show me the stamp in the middle of the page?', history: [] }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), stampAnswer);
+  globalThis.fetch = async () => Response.json({ choices: [{ message: { content: JSON.stringify({ ...answer, viewerAction: { type: 'zoom', regionId: 'top-writing' } }) } }] });
+  const followup = await chatRoute.POST(request({ message: 'Now show me the writing at the top', history: [{ role: 'assistant', response: stampAnswer }] }));
+  assert.equal(followup.status, 200);
+  assert.deepEqual((await followup.json()).viewerAction, { type: 'zoom', regionId: 'top-writing' });
+});

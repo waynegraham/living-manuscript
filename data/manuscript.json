@@ -73,5 +73,29 @@
     "Never invent dates, people, or locations.",
     "Explain when a reading is uncertain.",
     "Do not present the provisional transcription as verified."
+  ],
+  "regions": [
+    {
+      "id": "top-writing",
+      "label": "Writing at the top",
+      "description": "A close look at the handwritten text near the top of the page. Readings in the supplied record are provisional, not verified.",
+      "bounds": {
+        "x": 0.31,
+        "y": 0.005,
+        "width": 0.28,
+        "height": 0.07
+      }
+    },
+    {
+      "id": "middle-stamp",
+      "label": "Blue stamp in the middle",
+      "description": "The blue circular stamp on the left side near the middle of the page. Its owner, date, inscription reading, and purpose are not established in the supplied record.",
+      "bounds": {
+        "x": 0.025,
+        "y": 0.385,
+        "width": 0.28,
+        "height": 0.18
+      }
+    }
   ]
 }

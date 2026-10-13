@@ -154,11 +154,19 @@ The optional request `language` defaults to `en` for all three endpoints. Unsupp
 
 - `GET /api/health`: separate provider readiness and helpful diagnostics (`llm`, `stt`, `tts` for English, and `ttsAr` for Arabic).
 
-Server requests and model outputs are bounded. Up to 20 transcript turns remain in browser memory; the UI sends at most 18 previous turns. The chat output is limited to 700 tokens and 2,000 characters. Every output is validated, including allowed evidence IDs. Unsupported viewer actions and model-generated coordinates are rejected; `viewerAction` is currently always `null`. Persona transitions share one history and one orchestrator. Prompt instructions require unknown answers for missing evidence, but generated prose still requires human review for historical accuracy.
+Server requests and model outputs are bounded. Up to 20 transcript turns remain in browser memory; the UI sends at most 18 previous turns. The chat output is limited to 700 tokens and 2,000 characters. Every output is validated, including allowed evidence IDs. Viewer actions accept only `{ "type": "zoom", "regionId": "top-writing" }` or `{ "type": "zoom", "regionId": "middle-stamp" }` for the predefined regions, or `null`. Unknown region IDs, extra instructions, and model-generated coordinates are rejected. Persona transitions share one history and one orchestrator. Prompt instructions require unknown answers for missing evidence, but generated prose still requires human review for historical accuracy.
+
+## Spoken close-look examples
+
+Hold the microphone and ask **“Can you show me the writing at the top?”**, type that question, or select **Try a spoken close look**. The model is instructed to return a concise reply with `viewerAction: { "type": "zoom", "regionId": "top-writing" }`. As playback begins, the viewer zooms to the approved text region. **Replay** repeats the zoom; **Show detail** in the transcript brings it back independently of speech. If speech is disabled or fails, the same visual action still runs. **Reset view** and **Reset conversation** restore the full page.
+
+For a second example, ask **“Can you show me the stamp in the middle of the page?”** or select **Explore the middle stamp**. The `middle-stamp` region frames the blue circular stamp on the left near the middle, rather than the lower stamp. The reply describes its visible appearance and acknowledges that its owner, date, inscription reading, and purpose are not established in the record. Playback, Replay, Show detail, and reset behave the same way as the writing example.
+
+Each region lives in `data/manuscript.json` under `regions`, with bounds expressed as fractions of the full image width and height. The writing region selects the handwritten text near the top; it does not verify its reading or add historical metadata. The response should acknowledge that the supplied readings are provisional. The language model chooses the action, so live model behavior should be checked before presenting the demonstration.
 
 ## Manuscript knowledge and privacy
 
-`data/manuscript.json` remains the authoritative source. The supplied record is preserved; dates and scribes are not invented. The interface reads the current `imageUrl` and optional metadata. `imageServiceUrl` points to the manuscript’s IIIF Image API service; OpenSeadragon loads its `info.json` and high-resolution tiles directly in the browser. Drag to pan, pinch to zoom, or use the keyboard-accessible zoom and reset controls. The IIIF service must allow cross-origin requests. If it fails, a local JPEG derivative of the supplied TIFF remains available as a study image. The conversation continues independently of the viewer.
+`data/manuscript.json` remains the authoritative source. The supplied record is preserved; dates and scribes are not invented. The interface reads the current `imageUrl` and optional metadata. `imageServiceUrl` points to the manuscript’s IIIF Image API service; OpenSeadragon loads its `info.json` and high-resolution tiles directly in the browser. Drag to pan, pinch to zoom, or use the keyboard-accessible zoom and reset controls. The IIIF service must allow cross-origin requests. If it fails, a local JPEG derivative of the supplied TIFF remains available in the same zoomable viewer. The conversation continues independently of the viewer.
 
 No transcripts or recordings are retained by the application on disk. Browser session memory retains the conversation and optionally a recording for retry until reset or reload. The speech bridge uses a temporary file for ffmpeg's MP4 decoding and removes it after decoding, including on error; multipart parser temporary uploads are closed after use. WAV synthesis stays in memory. Model weights and dependencies are cached on disk. Fixed stage names and elapsed milliseconds are logged; visitor text, audio, keys, and upstream error bodies are not logged. Keep the app and model services local; public use would require rate limiting and abuse protection.
 
@@ -195,7 +203,7 @@ Live demonstration checks:
 
 1. Ask “Who are you?”, “How old are you?”, and “Who created you?” Confirm unknown dates/scribes remain unknown.
 2. Ask “How do scholars know?” and “What is written on your pages?” Confirm evidence is limited to the JSON record and no translation is invented.
-3. Ask “Can you show me something interesting?” and “What don't we know about you?” Confirm no unsupported image action or evidence identifier appears.
+3. Ask “Can you show me something interesting?” and “What don't we know about you?” Confirm the viewer may zoom to an approved region and no unsupported image action or evidence identifier appears.
 4. Request the scholar, ask a follow-up, then request the manuscript again. Confirm context and voice changes.
 5. Test mouse/touch holding, keyboard holding, toggle recording, permission denial, cancellation, and the 30-second cutoff.
 6. Stop the speech service and submit a typed question. Confirm chat/text still work; restore the service and retry speech.

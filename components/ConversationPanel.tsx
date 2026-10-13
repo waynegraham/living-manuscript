@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Manuscript } from "@/lib/manuscript";
-import type { ChatResponse, ResponseLanguage, Turn } from "@/lib/schemas";
+import type { ChatResponse, ResponseLanguage, Turn, ViewerAction } from "@/lib/schemas";
 import PushToTalk from "./PushToTalk";
 import SpeakerIndicator from "./SpeakerIndicator";
 import SuggestedQuestions from "./SuggestedQuestions";
@@ -15,7 +15,7 @@ async function checked(response: Response) {
   }
   return response;
 }
-export default function ConversationPanel({ manuscript }: { manuscript: Manuscript }) {
+export default function ConversationPanel({ manuscript, onViewerAction, onResetView }: { manuscript: Manuscript; onViewerAction: (action: ViewerAction) => void; onResetView: () => void }) {
   const [question, setQuestion] = useState("");
   const [language, setLanguage] = useState<ResponseLanguage>("en");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -62,6 +62,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
   function reset() {
     session.current++; request.current?.abort(); stopAudio(true); inFlight.current = false;
     setQuestion(""); setTurns([]); setBusy(false); setRetryAudio(null); setResetKey(k => k + 1);
+    onResetView();
     setStatus("Conversation reset.");
   }
   async function play(answer: ChatResponse, generate: boolean, answerLanguage: ResponseLanguage = language) {
@@ -81,9 +82,13 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
       if (id !== playback.current || !audio.current) return;
       audio.current.currentTime = 0;
       await audio.current.play();
-      if (id === playback.current) setPlaying(answer.speaker);
+      if (id === playback.current) {
+        setPlaying(answer.speaker);
+        if (answer.viewerAction) onViewerAction(answer.viewerAction);
+      }
     } catch (error) {
       if (id !== playback.current) return;
+      if (answer.viewerAction) onViewerAction(answer.viewerAction);
       setStatus(`${error instanceof Error ? error.message : "Speech playback failed."} The text response remains available. Use Replay to retry playback.`);
     }
   }
@@ -96,6 +101,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
     setQuestion(""); setStatus("Response received.");
     const speech = language === "ar" ? health?.ttsAr : health?.tts;
     if (speech?.provider !== "disabled") void play(answer, true, language);
+    else if (answer.viewerAction) onViewerAction(answer.viewerAction);
   }
   async function interact(message?: string, recording?: { blob: Blob; duration: number }) {
     if (inFlight.current) return;
@@ -155,6 +161,7 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
           <article key={index} className="mt-5 border-t border-line pt-4">
             <SpeakerIndicator speaker={turn.role === "user" ? "visitor" : turn.response.speaker} />
             <p lang={turn.role === "assistant" ? turn.language ?? "en" : undefined} dir={turn.role === "assistant" ? (turn.language === "ar" ? "rtl" : "ltr") : "auto"} className="mt-2 break-words text-sm leading-6">{turn.role === "user" ? turn.text : turn.response.text}</p>
+            {turn.role === "assistant" && turn.response.viewerAction && <button type="button" className="mt-2 min-h-8 text-xs underline underline-offset-4" onClick={() => { if (turn.response.viewerAction) onViewerAction(turn.response.viewerAction); }}>Show detail: {manuscript.regions.find(region => region.id === turn.response.viewerAction?.regionId)?.label}</button>}
             {turn.role === "assistant" && <p className="mt-2 text-xs text-muted">{turn.response.certainty}{turn.response.evidenceIds.length > 0 && ` · Evidence: ${turn.response.evidenceIds.join(", ")}`}</p>}
           </article>
         ))}
@@ -181,6 +188,11 @@ export default function ConversationPanel({ manuscript }: { manuscript: Manuscri
         {health && Object.entries(health).map(([kind, service]) => <p key={kind} className="mt-2">{kind === "ttsAr" ? "Arabic speech" : kind.toUpperCase()} ({service.provider}): {service.available ? "Available" : "Unavailable"}. {service.message}</p>)}
         <p>{healthError}</p><button type="button" onClick={() => { void checkHealth(); }} className="mt-2 min-h-8 underline">Refresh status</button>
       </details>
+      <div role="group" aria-label="Spoken close-look examples" className="mt-5 flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={() => { void interact(language === "ar" ? "هل يمكنك أن تريني الكتابة في أعلى الصفحة؟" : "Can you show me the writing at the top?"); }} className="min-h-10 border border-line px-3 text-sm disabled:opacity-50">Try a spoken close look</button>
+        <button type="button" disabled={busy} onClick={() => { void interact(language === "ar" ? "هل يمكنك أن تريني الختم في وسط الصفحة؟" : "Can you show me the stamp in the middle of the page?"); }} className="min-h-10 border border-line px-3 text-sm disabled:opacity-50">Explore the middle stamp</button>
+      </div>
+      <p className="mt-2 text-xs text-muted">Ask to see the writing at the top or the stamp in the middle, or try an example. The response can bring that detail into view.</p>
       <div className="mt-6"><SuggestedQuestions questions={manuscript.suggestedQuestions} arabicQuestions={manuscript.suggestedQuestionsArabic} language={language} onSelect={selected => { setQuestion(selected); inputRef.current?.focus(); }} /></div>
     </section>
   );

@@ -1,6 +1,7 @@
 export type ResponseLanguage = "en" | "ar";
 export type PersonaId = "manuscript" | "guide";
-export type ChatResponse = { speaker: PersonaId; text: string; certainty: "documented" | "interpretation" | "imaginative" | "unknown"; evidenceIds: string[]; viewerAction: null };
+export type ViewerAction = { type: "zoom"; regionId: string };
+export type ChatResponse = { speaker: PersonaId; text: string; certainty: "documented" | "interpretation" | "imaginative" | "unknown"; evidenceIds: string[]; viewerAction: ViewerAction | null };
 export type Turn = ({ role: "user"; text: string } | { role: "assistant"; response: ChatResponse }) & { language?: ResponseLanguage };
 export class AppError extends Error {
   constructor(message: string, public status = 400) { super(message); }
@@ -28,10 +29,15 @@ export const responseSchema = {
     text: { type: "string", minLength: 1, maxLength: 2000 },
     certainty: { type: "string", enum: ["documented", "interpretation", "imaginative", "unknown"] },
     evidenceIds: { type: "array", items: { type: "string" }, maxItems: 20 },
-    viewerAction: { type: "null" },
+    viewerAction: { anyOf: [
+      { type: "null" },
+      { type: "object", additionalProperties: false, properties: {
+        type: { type: "string", enum: ["zoom"] }, regionId: { type: "string" },
+      }, required: ["type", "regionId"] },
+    ] },
   }, required: ["speaker", "text", "certainty", "evidenceIds", "viewerAction"],
 };
-export function validateResponse(value: unknown, evidenceIds: readonly string[]): ChatResponse {
+export function validateResponse(value: unknown, evidenceIds: readonly string[], regionIds: readonly string[] = []): ChatResponse {
   const v = object(value);
   if (Object.keys(v).some(k => !Object.keys(responseSchema.properties).includes(k))) throw new AppError("Unexpected response field.");
   const persona = speaker(v.speaker);
@@ -39,10 +45,16 @@ export function validateResponse(value: unknown, evidenceIds: readonly string[])
   if (!["documented", "interpretation", "imaginative", "unknown"].includes(String(v.certainty))) throw new AppError("Invalid certainty.");
   if (!Array.isArray(v.evidenceIds) || v.evidenceIds.length > 20 || v.evidenceIds.some(id => typeof id !== "string" || !evidenceIds.includes(id))) throw new AppError("Invalid evidence reference.");
   if (v.certainty === "documented" && v.evidenceIds.length === 0) throw new AppError("Documented answers need evidence.");
-  if (v.viewerAction !== null) throw new AppError("Viewer actions are not enabled.");
-  return { speaker: persona, text: answer, certainty: v.certainty as ChatResponse["certainty"], evidenceIds: v.evidenceIds, viewerAction: null };
+  let viewerAction: ViewerAction | null = null;
+  if (v.viewerAction !== null) {
+    const action = object(v.viewerAction);
+    if (action.type !== "zoom" || typeof action.regionId !== "string" || !regionIds.includes(action.regionId)
+      || Object.keys(action).some(key => key !== "type" && key !== "regionId")) throw new AppError("Invalid viewer region or action.");
+    viewerAction = { type: "zoom", regionId: action.regionId };
+  }
+  return { speaker: persona, text: answer, certainty: v.certainty as ChatResponse["certainty"], evidenceIds: v.evidenceIds, viewerAction };
 }
-export function validateChat(value: unknown, evidenceIds: readonly string[]) {
+export function validateChat(value: unknown, evidenceIds: readonly string[], regionIds: readonly string[] = []) {
   const v = object(value);
   const message = text(v.message, 500);
   const responseLanguage = language(v.language);
@@ -51,7 +63,7 @@ export function validateChat(value: unknown, evidenceIds: readonly string[]) {
     const turn = object(item);
     const metadata = turn.language === undefined ? {} : { language: language(turn.language) };
     if (turn.role === "user") return { role: "user", text: text(turn.text, 500), ...metadata };
-    if (turn.role === "assistant") return { role: "assistant", response: validateResponse(turn.response, evidenceIds), ...metadata };
+    if (turn.role === "assistant") return { role: "assistant", response: validateResponse(turn.response, evidenceIds, regionIds), ...metadata };
     throw new AppError("Invalid conversation turn.");
   });
   return { message, history, language: responseLanguage };
